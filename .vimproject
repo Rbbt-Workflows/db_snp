@@ -1,0 +1,19 @@
+DbSNP=/$PWD/ filter="*"{
+ workflow.rb
+ lib=lib{
+  rbbt=rbbt{
+   sources=sources{
+    dbSNP.rb
+    dbSNP=dbSNP{
+     indices.rb
+     entity.rb
+    }
+   }
+  }
+ }
+ share=share{
+  rbbt_commands=rbbt_commands{
+   bootstrap
+  }
+ }
+}
