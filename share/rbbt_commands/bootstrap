@@ -6,8 +6,6 @@ require 'rbbt/sources/dbSNP'
 
 
 claims = [DbSNP.rsids, DbSNP.mutations] #, DbSNP.rsids, DbSNP.mutations_ncbi, DbSNP.mutations_hg18]
-knowledge_base = %w( )
 
 claims.each{|claim| claim.produce }
-knowledge_base.each{|database| COSMIC.knowledge_base.get_database(database) }
 

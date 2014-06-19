@@ -1,7 +1,10 @@
-require 'rbbt'
+require 'rbbt-util'
 require 'rbbt/util/open'
 require 'rbbt/resource'
+require 'rbbt/persist'
 require 'net/ftp'
+
+$LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '../../..', 'lib'))
 
 module DbSNP
   extend Resource
@@ -12,7 +15,7 @@ module DbSNP
 
   self.organism = "Hsa/jan2013"
 
-  NCBI_URL = "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606/VCF/common_all.vcf.gz"
+  NCBI_URL = "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b141_GRCh37p13/VCF/common_all.vcf.gz"
 
   DbSNP.claim DbSNP.mutations, :proc do |filename|
     Open.write filename do |file|
@@ -34,141 +37,41 @@ module DbSNP
   end
 
   DbSNP.claim DbSNP.rsids, :proc do
-    Workflow.require_workflow "Genomics"
-    require 'rbbt/entity/genomic_mutation'
-    TSV.reorder_stream(GenomicMutation::VCF.open_stream(Open.open(NCBI_URL)), {0 => 1})
+    Workflow.require_workflow "Sequence"
+    TSV.reorder_stream(Sequence::VCF.open_stream(Open.open(NCBI_URL, :nocache => true), false, false, true), {0 => 2})
   end
 
-  #DbSNP.claim DbSNP.mutations, :proc do
-  #  tsv = TSV.setup({}, :key_field => "RS ID", :fields => ["Genomic Mutation"], :type => :flat)
-  #  file = Open.open(NCBI_URL, :nocache => true) 
-  #  while line = file.gets do
-  #    next if line[0] == "#"[0]
-  #    chr, position, id, ref, alt = line.split "\t"
+  GM_SHARD_FUNCTION = Proc.new do |key|
+    key[0..key.index(":")-1]
+  end
 
-  #    mutations = alt.split(",").collect do |a|
-  #      if alt[0] == ref[0]
-  #        alt[0] = '+'[0]
-  #      end
-  #      [chr, position, alt] * ":"
-  #    end
+  CHR_POS = Proc.new do |key|
+    raise "Key (position) not String: #{ key }" unless String === key
+    if match = key.match(/.*?:(\d+):?/)
+      match[1].to_i
+    else
+      raise "Key (position) not understood: #{ key }"
+    end
+  end
 
-  #    tsv.namespace = "Hsa/may2012"
-  #    tsv[id] = mutations
-  #  end
+  def self.database
+    @@database ||= begin
+                     Persist.persist_tsv("dbSNP", DbSNP.mutations, {}, :persist => true,
+                                         :prefix => "dbSNP", :serializer => :string, :engine => "HDB",
+                                         :shard_function => GM_SHARD_FUNCTION, :pos_function => CHR_POS) do |sharder|
+                       sharder.fields = ["RS ID"]
+                       sharder.key_field = "Genomic Position"
+                       sharder.type = :single
 
-  #  tsv.to_s
-  #end
-
-  #DbSNP.claim DbSNP.rsids, :proc do |filename|
-  #  ftp = Net::FTP.new('ftp.broadinstitute.org')
-  #  ftp.passive = true
-  #  ftp.login('gsapubftp-anonymous', 'devnull@nomail.org')
-  #  ftp.chdir('/bundle/2.3/hg19')
-
-  #  tmpfile = TmpFile.tmp_file + '.gz'
-  #  ftp.getbinaryfile('dbsnp_137.hg19.vcf.gz', tmpfile, 1024)
-
-  #  file = Open.open(tmpfile, :nocache => true) 
-  #  begin
-  #    File.open(filename, 'w') do |f|
-  #      f.puts "#: :type=:list#:namespace=Hsa/may2012"
-  #      f.puts "#" + ["RS ID", "GMAF", "G5", "G5A", "dbSNP Build ID"] * "\t"
-  #      while line = file.gets do
-  #        next if line[0] == "#"[0]
-
-  #        chr, position, id, ref, muts, qual, filter, info = line.split "\t"
-
-  #        g5 = g5a = dbsnp_build_id = gmaf = nil
-
-  #        gmaf = $1 if info =~ /GMAF=([0-9.]+)/
-  #        g5 = true if info =~ /\bG5\b/
-  #        g5a = true if info =~ /\bG5A\b/
-  #        dbsnp_build_id = $1 if info =~ /dbSNPBuildID=(\d+)/
-
-  #        f.puts [id, gmaf, g5, g5a, dbsnp_build_id] * "\t"
-  #      end
-  #    end
-  #  rescue Exception
-  #    FileUtils.rm filename if File.exists? filename
-  #    raise $!
-  #  ensure
-  #    file.close
-  #    FileUtils.rm tmpfile
-  #  end
-
-  #  nil
-  #end
-
-  #DbSNP.claim DbSNP.mutations, :proc do |filename|
-  #  ftp = Net::FTP.new('ftp.broadinstitute.org')
-  #  ftp.passive = true
-  #  ftp.login('gsapubftp-anonymous', 'devnull@nomail.org')
-  #  ftp.chdir('/bundle/2.3/hg19')
-
-  #  tmpfile = TmpFile.tmp_file + '.gz'
-  #  ftp.getbinaryfile('dbsnp_137.hg19.vcf.gz', tmpfile, 1024)
-
-  #  file = Open.open(tmpfile, :nocache => true) 
-  #  begin
-  #    File.open(filename, 'w') do |f|
-  #      f.puts "#: :type=:flat#:namespace=Hsa/may2012"
-  #      f.puts "#" + ["RS ID", "Genomic Mutation"] * "\t"
-  #      while line = file.gets do
-  #        next if line[0] == "#"[0]
-
-  #        chr, position, id, ref, muts, qual, filter, info = line.split "\t"
-
-  #        chr.sub!('chr', '')
-
-  #        position, muts = Misc.correct_vcf_mutation(position.to_i, ref, muts)
-
-  #        mutations = muts.collect{|mut| [chr, position, mut] * ":" }
-
-  #        f.puts ([id] + mutations) * "\t"
-  #      end
-  #    end
-  #  rescue Exception
-  #    FileUtils.rm filename if File.exists? filename
-  #    raise $!
-  #  ensure
-  #    file.close
-  #    FileUtils.rm tmpfile
-  #  end
-
-  #  nil
-  #end
-
-  #DbSNP.claim DbSNP.mutations_hg18, :proc do |filename|
-  #  require 'rbbt/sources/organism'
-
-  #  mutations = CMD.cmd("grep -v '^#'|cut -f 2|sort -u", :in => DbSNP.mutations.open).read.split("\n").collect{|l| l.split("|")}.flatten
-
-  #  translations = Misc.process_to_hash(mutations){|mutations| Organism.liftOver(mutations, "Hsa/jun2011", "Hsa/may2009")}
-  #  begin
-  #    file = Open.open(DbSNP.mutations.find, :nocache => true) 
-  #    File.open(filename, 'w') do |f|
-  #      f.puts "#: :type=:flat#:namespace=Hsa/may2009"
-  #      f.puts "#" + ["RS ID", "Genomic Mutation"] * "\t"
-  #      while line = file.gets do
-  #        next if line[0] == "#"[0]
-  #        parts = line.split("\t")
-  #        parts[1..-1] = parts[1..-1].collect{|p| translations[p]} * "|"
-  #        f.puts parts * "\t"
-  #      end
-  #    end
-  #  rescue Exception
-  #    FileUtils.rm filename if File.exists? filename
-  #    raise $!
-  #  ensure
-  #    file.close
-  #  end
-
-  #  nil
-  #end
-
+                       TSV.traverse DbSNP.mutations, :type => :array, :into => sharder, :bar => "Processing DbSNP" do |line|
+                         next if line =~ /^#/
+                         rsid,_sep, mutation = line.partition "\t"
+                         [mutation, rsid]
+                       end
+                      end
+                    end
+  end
 end
 
 require 'rbbt/sources/dbSNP/indices'
 require 'rbbt/sources/dbSNP/entity'
-
