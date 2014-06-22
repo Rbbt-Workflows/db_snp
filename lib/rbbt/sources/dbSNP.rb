@@ -9,6 +9,7 @@ $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '../../..', 'lib'))
 module DbSNP
   extend Resource
   self.subdir = "share/databases/dbSNP"
+
   class << self
     attr_accessor :organism
   end
@@ -57,6 +58,7 @@ module DbSNP
   def self.database
     @@database ||= begin
                      Persist.persist_tsv("dbSNP", DbSNP.mutations, {}, :persist => true,
+                                         :file => Rbbt.var.DbSNP.shard_mutations,
                                          :prefix => "dbSNP", :serializer => :string, :engine => "HDB",
                                          :shard_function => GM_SHARD_FUNCTION, :pos_function => CHR_POS) do |sharder|
                        sharder.fields = ["RS ID"]
@@ -70,6 +72,23 @@ module DbSNP
                        end
                       end
                     end
+  end
+
+  def self.rsid_database
+    @@rsid_database ||= begin
+                     DbSNP.rsids.tsv :persist => true, :persist_file => Rbbt.var.DbSNP.rsids
+                    end
+  end
+
+  DbSNP.claim Rbbt.var.DbSNP.shard_mutations, :proc do
+    DbSNP.database
+    nil
+  end
+
+
+  DbSNP.claim Rbbt.var.DbSNP.shard_mutations, :proc do
+    DbSNP.rsid_database
+    nil
   end
 end
 
