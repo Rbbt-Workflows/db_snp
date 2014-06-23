@@ -58,7 +58,7 @@ module DbSNP
   def self.database
     @@database ||= begin
                      Persist.persist_tsv("dbSNP", DbSNP.mutations, {}, :persist => true,
-                                         :file => Rbbt.var.DbSNP.shard_mutations,
+                                         :file => Rbbt.var.DbSNP.shard_mutations.find,
                                          :prefix => "dbSNP", :serializer => :string, :engine => "HDB",
                                          :shard_function => GM_SHARD_FUNCTION, :pos_function => CHR_POS) do |sharder|
                        sharder.fields = ["RS ID"]
@@ -76,8 +76,8 @@ module DbSNP
 
   def self.rsid_database
     @@rsid_database ||= begin
-                     DbSNP.rsids.tsv :persist => true, :persist_file => Rbbt.var.DbSNP.rsids
-                    end
+                          DbSNP.rsids.tsv :persist => true, :persist_file => Rbbt.var.DbSNP.rsids.find
+                        end
   end
 
   DbSNP.claim Rbbt.var.DbSNP.shard_mutations, :proc do
@@ -86,11 +86,10 @@ module DbSNP
   end
 
 
-  DbSNP.claim Rbbt.var.DbSNP.shard_mutations, :proc do
+  DbSNP.claim Rbbt.var.DbSNP.rsids, :proc do
     DbSNP.rsid_database
     nil
   end
 end
 
 require 'rbbt/sources/dbSNP/indices'
-require 'rbbt/sources/dbSNP/entity'
