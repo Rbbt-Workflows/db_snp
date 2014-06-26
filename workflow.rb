@@ -15,7 +15,7 @@ module DbSNP
     dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"], :type => :single
     dumper.init
     database = DbSNP.database
-    TSV.traverse mutations, :into => dumper, :bar => true, :type => :array do |mutation|
+    TSV.traverse mutations, :into => dumper, :bar => "DbSNP identify", :type => :array do |mutation|
       next if mutation.empty?
       rsid = database[mutation]
       next if rsid.nil?
@@ -28,7 +28,7 @@ module DbSNP
     database = DbSNP.rsid_database
     dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"] + database.fields[1..-1], :type => :single
     dumper.init
-    TSV.traverse step(:identify), :into => dumper, :bar => true do |mutation, rsid|
+    TSV.traverse step(:identify), :into => dumper, :bar => "DbSNP annotate" do |mutation, rsid|
       next if mutation.empty?
       values = database[rsid]
       next if values.nil?
