@@ -1,11 +1,3 @@
 #!/usr/bin/env ruby
 
-require 'rbbt/workflow'
-Workflow.require_workflow "DbSNP"
-require 'rbbt/sources/dbSNP'
-
-
-claims = [DbSNP.rsids, DbSNP.mutations] #, DbSNP.rsids, DbSNP.mutations_ncbi, DbSNP.mutations_hg18]
-
-claims.each{|claim| claim.produce }
-
+`rbbt workflow example DbSNP`
