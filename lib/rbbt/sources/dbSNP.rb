@@ -16,7 +16,7 @@ module DbSNP
 
   self.organism = "Hsa/jan2013"
 
-  NCBI_URL = "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b141_GRCh37p13/VCF/common_all.vcf.gz"
+  NCBI_URL = "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b146_GRCh37p13/VCF/00-All.vcf.gz"
 
   DbSNP.claim DbSNP.mutations, :proc do |filename|
     Open.write filename do |file|
