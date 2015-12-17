@@ -28,7 +28,7 @@ module DbSNP
   dep :identify
   task :annotate => :tsv do 
     database = DbSNP.rsid_database
-    dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"] + database.fields[1..-1], :type => :single
+    dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"] + database.fields[1..-1], :type => :list
     dumper.init
     database.unnamed = true
     TSV.traverse step(:identify), :into => dumper, :bar => self.progress_bar("Annotate dbSNP") do |mutation, rsid|

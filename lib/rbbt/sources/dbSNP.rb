@@ -46,6 +46,10 @@ module DbSNP
     key[0..key.index(":")-1]
   end
 
+  RS_SHARD_FUNCTION = Proc.new do |key|
+    key[-2..-1]
+  end
+
   CHR_POS = Proc.new do |key|
     raise "Key (position) not String: #{ key }" unless String === key
     if match = key.match(/.*?:(\d+):?/)
@@ -76,12 +80,60 @@ module DbSNP
                     end
   end
 
+  #def self.rsid_database
+  #  @@rsid_database ||= begin
+  #                        db = DbSNP.rsids.tsv :persist => true, :persist_file => Rbbt.var.DbSNP.rsids.find, :monitor => true, :unnamed => true
+  #                        db.unnamed = true
+  #                        db
+  #                      end
+  #end
+
   def self.rsid_database
     @@rsid_database ||= begin
-                          db = DbSNP.rsids.tsv :persist => true, :persist_file => Rbbt.var.DbSNP.rsids.find
-                          db.unnamed = true
-                          db
-                        end
+                     db = Persist.persist_tsv("dbSNP", DbSNP.rsids, {}, :persist => true,
+                                         :file => Rbbt.var.DbSNP.shard_rsids.find,
+                                         :prefix => "dbSNP", :serializer => :list, :engine => "HDB:big",
+                                         :shard_function => RS_SHARD_FUNCTION) do |sharder|
+                       key_field, *fields = TSV.parse_header(DbSNP.rsids).all_fields
+                       sharder.fields = fields
+                       sharder.key_field = key_field
+                       sharder.type = :list
+
+                       TSV.traverse DbSNP.rsids, :type => :array, :into => sharder, :bar => "Processing DbSNP rsids" do |line|
+                         next if line =~ /^#/
+                         key, *values = line.split("\t")
+                         [key, values]
+                       end
+                      end
+                     db.unnamed = true
+                     db
+                    end
+
+  end
+
+  def self.caf_database
+    @@database ||= begin
+                     db = Persist.persist_tsv("dbSNP", DbSNP.rsids, {}, :persist => true,
+                                         :file => Rbbt.var.DbSNP.shard_caf.find,
+                                         :prefix => "dbSNP", :serializer => :flat, :engine => "HDB:big",
+                                         :shard_function => RS_SHARD_FUNCTION) do |sharder|
+                       key_field, *fields = TSV.parse_header(DbSNP.rsids).all_fields
+                       pos = fields.index "CAF"
+                       sharder.fields = ["CAF"]
+                       sharder.key_field = key_field
+                       sharder.type = :flat
+
+                       TSV.traverse DbSNP.rsids, :type => :array, :into => sharder, :bar => "Processing DbSNP rsids" do |line|
+                         next if line =~ /^#/
+                         key, *values = line.split("\t")
+                         caf = values[pos].split(",")
+                         [key, caf]
+                       end
+                      end
+                     db.unnamed = true
+                     db
+                    end
+
   end
 
   DbSNP.claim Rbbt.var.DbSNP.shard_mutations, :proc do
