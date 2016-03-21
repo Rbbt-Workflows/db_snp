@@ -11,14 +11,21 @@ module DbSNP
   self.organism = "Hsa/jan2013"
 
   input :mutations, :array, "Genomic Mutation", nil, :stream => true
-  task :identify => :tsv do |mutations|
+  input :by_position, :boolean, "Identify by position", false
+  task :identify => :tsv do |mutations,by_position|
     dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"], :type => :single
     dumper.init
     database = DbSNP.database
     database.unnamed = true
     TSV.traverse mutations, :into => dumper, :bar => self.progress_bar("Identify dbSNP"), :type => :array do |mutation|
       next if mutation.empty?
-      rsid = database[mutation]
+      if by_position
+        position = mutation.split(":")[0..1] * ":"
+        matches = database.prefix(position+":")
+        rsid = database.chunked_values_at matches
+      else
+        rsid = database[mutation]
+      end
       next if rsid.nil?
       [mutation, rsid]
     end

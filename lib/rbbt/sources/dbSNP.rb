@@ -24,14 +24,17 @@ module DbSNP
 #: :namespace=#{DbSNP.organism}#:type=:flat
 #RS ID\tGenomic Mutation
       EOF
-      Open.read(NCBI_URL) do |line|
+      Open.read(NCBI_URL, :nocache => true) do |line|
         next if line[0] == "#"
 
         chr, pos, id, ref, alt, qual, filter, info = line.split("\t")
-        pos, alt = Misc.correct_vcf_mutation(pos.to_i, ref, alt) 
+        pos, alts = Misc.correct_vcf_mutation(pos.to_i, ref, alt) 
 
-        mutation = [chr, pos, alt] * ":"
-        file.puts [id, mutation] * "\t"
+        muts = alts.collect do |alt|
+          [chr, pos, alt] * ":"
+        end
+
+        file.puts [id, muts].flatten * "\t"
       end
     end
     nil
@@ -63,7 +66,7 @@ module DbSNP
     @@database ||= begin
                      db = Persist.persist_tsv("dbSNP", DbSNP.mutations, {}, :persist => true,
                                          :file => Rbbt.var.DbSNP.shard_mutations.find,
-                                         :prefix => "dbSNP", :serializer => :string, :engine => "HDB",
+                                         :prefix => "dbSNP", :serializer => :string, :engine => "BDB",
                                          :shard_function => GM_SHARD_FUNCTION, :pos_function => CHR_POS) do |sharder|
                        sharder.fields = ["RS ID"]
                        sharder.key_field = "Genomic Position"
@@ -71,14 +74,22 @@ module DbSNP
 
                        TSV.traverse DbSNP.mutations, :type => :array, :into => sharder, :bar => "Processing DbSNP" do |line|
                          next if line =~ /^#/
-                         rsid,_sep, mutation = line.partition "\t"
-                         [mutation, rsid]
+                         rsid, *mutations = line.split "\t"
+
+                         res = mutations.collect do |mutation|
+                           [mutation, rsid]
+                         end
+
+                         res.extend MultipleResult
+
+                         res
                        end
                       end
                      db.unnamed = true
                      db
                     end
   end
+
 
   #def self.rsid_database
   #  @@rsid_database ||= begin
