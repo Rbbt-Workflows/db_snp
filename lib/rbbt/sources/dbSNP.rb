@@ -18,13 +18,15 @@ module DbSNP
 
   NCBI_URL = "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/00-All.vcf.gz"
 
+  DbSNP.claim DbSNP["All.vcf.gz"], :url, "ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/00-All.vcf.gz"
+
   DbSNP.claim DbSNP.mutations, :proc do |filename|
     Open.write filename do |file|
       file.puts <<-EOF
 #: :namespace=#{DbSNP.organism}#:type=:flat
 #RS ID\tGenomic Mutation
       EOF
-      Open.read(NCBI_URL, :nocache => true) do |line|
+      Open.read(DbSNP["All.vcf.gz"], :nocache => true) do |line|
         next if line[0] == "#"
 
         chr, pos, id, ref, alt, qual, filter, info = line.split("\t")
@@ -42,7 +44,7 @@ module DbSNP
 
   DbSNP.claim DbSNP.rsids, :proc do
     Workflow.require_workflow "Sequence"
-    TSV.reorder_stream(Sequence::VCF.open_stream(Open.open(NCBI_URL, :nocache => true), false, false, true), {0 => 2})
+    TSV.reorder_stream(Sequence::VCF.open_stream(Open.open(DbSNP["All.vcf.gz"], :nocache => true), false, false, true), {0 => 2})
   end
 
   GM_SHARD_FUNCTION = Proc.new do |key|
