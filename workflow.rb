@@ -1,5 +1,6 @@
 require 'rbbt'
 require 'rbbt/workflow'
+require 'rbbt/sources/organism'
 
 module DbSNP
   extend Workflow
@@ -12,10 +13,14 @@ module DbSNP
 
   input :mutations, :array, "Genomic Mutation", nil, :stream => true
   input :by_position, :boolean, "Identify by position", false
-  task :identify => :tsv do |mutations,by_position|
+  input :organism, :select, "Organism code", Organism.default_code("Hsa"), :select_options => %w(GRCh37 GRCh38)
+  input :dbsnp_set, :select, "How many DbSNP mutations to use", "common", :select_options => %w(common all)
+  task :identify => :tsv do |mutations,by_position,organism,set|
     dumper = TSV::Dumper.new :key_field => "Genomic Mutation", :fields => ["RS ID"], :type => :single
     dumper.init
-    database = DbSNP.database
+    build = Organism.GRC_build(organism)
+    raise ParameterException, "Organism build #{build} unkown" if build.nil?
+    database = DbSNP.database(build, set)
     database.unnamed = true
     TSV.traverse mutations, :into => dumper, :bar => self.progress_bar("Identify dbSNP"), :type => :array do |mutation|
       next if mutation.empty?
